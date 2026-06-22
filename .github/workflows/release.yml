@@ -1,0 +1,106 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - rust-v[0-9]+.[0-9]+.[0-9]+-custom
+      - rust-v[0-9]+.[0-9]+.[0-9]+-custom-r[0-9]+
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-24.04
+            rust-target: x86_64-unknown-linux-musl
+          - os: macos-26
+            rust-target: aarch64-apple-darwin
+    env:
+      xcode_version: 26.5
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set RUST_TARGET
+        run: echo 'RUST_TARGET=${{ matrix.rust-target }}' >> "$GITHUB_ENV"
+
+      - name: Setup Rust
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          toolchain: 1.95.0
+          target: ${{ matrix.rust-target }}
+
+      - name: Setup rusty_v8 artifacts
+        uses: ./.github/actions/setup-rusty-v8
+        with:
+          target: ${{ matrix.rust-target }}
+
+      - name: Setup build tools for Linux
+        if: startsWith(matrix.os, 'ubuntu-')
+        run: |
+          sudo apt-get update
+          sudo apt-get -y -qq install musl-tools zstd
+
+      - name: Setup build tools for macOS
+        if: startsWith(matrix.os, 'macos-')
+        run: |
+          sudo xcode-select -s '/Applications/Xcode_${{ env.xcode_version }}.app'
+          if ! command -v zstd >/dev/null 2>&1; then
+            brew install zstd
+          fi
+
+      - name: Build codex-rs
+        working-directory: codex-rs
+        run: cargo build --release --package codex-cli --bin codex --target "$RUST_TARGET"
+
+      - name: Compress binary
+        working-directory: codex-rs
+        run: |
+          exe_suffix=""
+          if [[ "$RUST_TARGET" == *windows* ]]; then
+            exe_suffix=".exe"
+          fi
+
+          binary="target/${RUST_TARGET}/release/codex${exe_suffix}"
+          archive="${GITHUB_WORKSPACE}/dist/codex-${RUST_TARGET}${exe_suffix}.zst"
+
+          if [[ ! -f "$binary" ]]; then
+            echo "Binary $binary not found" >&2
+            exit 1
+          fi
+
+          mkdir -p "${GITHUB_WORKSPACE}/dist"
+          zstd --force --quiet -19 "$binary" -o "$archive"
+
+      - name: Upload compressed binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: codex-${{ matrix.rust-target }}
+          path: dist/codex-${{ matrix.rust-target }}*.zst
+          if-no-files-found: error
+
+  publish:
+    needs: build
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+
+    steps:
+      - name: Download compressed binaries
+        uses: actions/download-artifact@v4
+        with:
+          path: dist
+          pattern: codex-*
+          merge-multiple: true
+
+      - name: Release
+        uses: ncipollo/release-action@v1
+        with:
+          tag: ${{ github.ref_name }}
+          artifacts: dist/*.zst
+          allowUpdates: true
