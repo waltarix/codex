@@ -14322,14 +14322,12 @@ dependencies = [
 [[package]]
 name = "unicode-width"
 version = "0.1.14"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7dd6e30e90baa6f72411720665d41d89b9a3d039dc45b8faea1ddd07f617f6af"
+source = "git+https://github.com/waltarix/unicode-width?tag=v0.1.14-custom-r1#80f237db98d09ff79b0baa0b85c238a291d9cf1c"
 
 [[package]]
 name = "unicode-width"
 version = "0.2.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4a1a07cc7db3810833284e8d372ccdc6da29741639ecc70c9ec107df0fa6154c"
+source = "git+https://github.com/waltarix/unicode-width?tag=v0.2.1-custom#2791b118791d4db14b81d3a5e61a5c5289f6779d"
 
 [[package]]
 name = "unicode-xid"
